@@ -1,0 +1,114 @@
+- hosts: all
+  become: yes
+  gather_facts: false
+  tasks:
+  - name: Install docker packages
+    remote_user: ubuntu
+    apt:
+      name: "{{ item }}"
+      state: present
+      update_cache: yes
+    with_items:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - software-properties-common
+    tags:
+      - docker
+    become: true
+
+
+  - name: Add Docker s official GPG key
+    remote_user: ubuntu
+    apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+    tags:
+      - docker
+    become: true
+
+  - name: Verify that we have the key with the fingerprint
+    remote_user: ubuntu
+    apt_key:
+      id: 0EBFCD88
+      state: present
+    tags:
+      - docker
+    become: true
+
+  - name: Set up the stable repository
+    remote_user: ubuntu
+    apt_repository:
+      repo: deb [arch=amd64] https://download.docker.com/linux/ubuntu xenial stable
+      state: present
+      update_cache: yes
+    tags:
+      - docker
+    become: true
+
+  - name: Update apt packages
+    remote_user: ubuntu
+    apt:
+      update_cache: yes
+    tags:
+      - docker
+    become: true
+
+  - name: Install docker
+    remote_user: ubuntu
+    apt:
+      name: docker-ce
+      state: present
+      update_cache: yes
+    #notify: Start docker on boot
+    tags:
+      - docker
+    become: true
+
+  - name: Add remote "ubuntu" user to "docker" group
+    remote_user: ubuntu
+    user:
+      name: "ubuntu"
+      group: "docker"
+      append: yes
+    tags:
+      - docker
+    become: true
+
+  - name: Install docker-compose
+    remote_user: ubuntu
+    ansible.builtin.shell: 'curl -L https://github.com/docker/compose/releases/download/1.20.0/docker-compose-`uname -s`-`uname -m` -o /usr/local/bin/docker-compose'
+    #become: true
+
+##########################
+  - name: Create a directory if it does not exist
+    remote_user: ubuntu
+    ansible.builtin.file:
+      path: ~/Compose/
+      state: directory
+      mode: '0755'
+
+  - name: copy Docker Compose files
+    remote_user: ubuntu
+    copy:
+      src: ~/mediawiki/{{ item }}
+      dest: ~/Compose/{{ item }}
+    loop:
+      - wiki.yml
+    become: true
+
+#  - name: Create and start services
+#    remote_user: ubuntu 
+#    community.docker.docker_compose:
+#       project_src: /home/ubuntu/Compose/
+#    register: output
+#    become: true
+
+  - name: Compose up
+    remote_user: ubuntu
+    ansible.builtin.shell: 'docker-compose -f ~/Compose/wiki.yml down && docker-compose -f ~/Compose/wiki.yml up -d'
+
+
+  - name: Show results
+    ansible.builtin.debug:
+       var: output
